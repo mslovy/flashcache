@@ -1167,6 +1167,8 @@ flashcache_clean_set(struct cache_c *dmc, int set, int force_clean_blocks)
 	struct cacheblock *cacheblk;
 	int do_delayed_clean = 0;
 	int scanned = 0;
+	int current_nr_writeback = 0;
+	unsigned long flags;
 
 	if (dmc->cache_mode != FLASHCACHE_WRITE_BACK)
 		return;
@@ -1188,6 +1190,16 @@ flashcache_clean_set(struct cache_c *dmc, int set, int force_clean_blocks)
 		dmc->flashcache_errors.memory_alloc_errors++;
 		return;
 	}
+
+	spin_lock_irqsave(&dmc->ioctl_lock, flags);
+	current_nr_writeback = atomic_read(&dmc->nr_writeback);
+	if  (dmc->writeback_throttle && time_after(jiffies, dmc->writeback_tstamp)) {
+		current_nr_writeback = 0;
+		atomic_set(&dmc->nr_writeback, current_nr_writeback);
+		dmc->writeback_tstamp = jiffies + dmc->writeback_update_seconds * HZ;
+	}
+	spin_unlock_irqrestore(&dmc->ioctl_lock, flags);
+
 	spin_lock_irq(&cache_set->set_spin_lock);
 	/* 
 	 * Before we try to clean any blocks, check the last time the fallow block
@@ -1209,7 +1221,7 @@ flashcache_clean_set(struct cache_c *dmc, int set, int force_clean_blocks)
 		cacheblk = &dmc->cache[i];
 		if (!(cacheblk->cache_state & DIRTY_FALLOW_2))
 			continue;
-		if (!flashcache_can_clean(dmc, cache_set, nr_writes)) {
+		if (!flashcache_can_clean(dmc, cache_set, nr_writes) || current_nr_writeback >= dmc->writeback_throttle) {
 			/*
 			 * There are fallow blocks that need cleaning, but we 
 			 * can't clean them this pass, schedule delayed cleaning 
@@ -1241,7 +1253,10 @@ flashcache_clean_set(struct cache_c *dmc, int set, int force_clean_blocks)
 		 * We picked up all the dirty fallow blocks we can. We can still clean more to
 		 * remain under the dirty threshold. Clean some more blocks.
 		 */
-		threshold_clean = cache_set->nr_dirty - dmc->dirty_thresh_set;
+		if (cache_set->nr_dirty > dmc->force_writeback_thresh_set)
+			threshold_clean = cache_set->nr_dirty - dmc->force_writeback_thresh_set + dmc->assoc/10;
+		else
+			threshold_clean = dmc->writeback_throttle - current_nr_writeback;
 	} else if (cache_set->nr_dirty > 0) {
 		/* We want to clean at least 1 block - miss path */
 		if (cache_set->nr_dirty > dmc->dirty_thresh_set) {
@@ -1306,6 +1321,7 @@ flashcache_clean_set(struct cache_c *dmc, int set, int force_clean_blocks)
 		}
 	}
 out:
+	atomic_add(nr_writes, &dmc->nr_writeback);
 	if (nr_writes > 0) {
 		flashcache_merge_writes(dmc, writes_list, set_dirty_list, &nr_writes, set);
 		dmc->flashcache_stats.clean_set_ios += nr_writes;
