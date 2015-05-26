@@ -62,6 +62,15 @@
 static int fallow_clean_speed_min = FALLOW_SPEED_MIN;
 static int fallow_clean_speed_max = FALLOW_SPEED_MAX;
 
+static int writeback_throttle_min = WRITEBACK_THROTTLE_MIN;
+static int writeback_throttle_max = WRITEBACK_THROTTLE_MAX;
+
+static int force_writeback_thresh_min = FORCE_WRITEBACK_THRESH_MIN;
+static int force_writeback_thresh_max = FORCE_WRITEBACK_THRESH_MAX;
+
+static int writeback_update_seconds_min = WRITEBACK_UPDATE_SECONDS_MIN;
+static int writeback_update_seconds_max = WRITEBACK_UPDATE_SECONDS_MAX; 
+
 extern u_int64_t size_hist[];
 
 static char *flashcache_cons_procfs_cachename(struct cache_c *dmc, char *path_component);
@@ -201,6 +210,97 @@ flashcache_fallow_clean_speed_sysctl(ctl_table *table, int write,
 
 static int
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,17,0)
+flashcache_writeback_throttle_sysctl(struct ctl_table *table, int write,
+                                     void __user *buffer,
+                                     size_t *length, loff_t *ppos)
+#else
+flashcache_writeback_throttle_sysctl(ctl_table *table, int write,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,32)
+                                     struct file *file,
+#endif
+                                     void __user *buffer,
+                                     size_t *length, loff_t *ppos)
+#endif
+{
+        struct cache_c *dmc = (struct cache_c *)table->extra1;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,32)
+        proc_dointvec(table, write, file, buffer, length, ppos);
+#else
+        proc_dointvec(table, write, buffer, length, ppos);
+#endif
+        if (write) {
+                if (dmc->sysctl_writeback_throttle < writeback_throttle_min)
+                        dmc->sysctl_writeback_throttle = writeback_throttle_min;
+		if (dmc->sysctl_writeback_throttle > writeback_throttle_max)
+			dmc->sysctl_writeback_throttle = writeback_throttle_max;
+		dmc->writeback_throttle = dmc->sysctl_writeback_throttle;
+	}
+	return 0;
+}
+
+static int
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,17,0)
+flashcache_force_writeback_thresh_sysctl(struct ctl_table *table, int write,
+                                         void __user *buffer,
+					 size_t *length, loff_t *ppos)
+#else
+flashcache_force_writeback_thresh_sysctl(ctl_table *table, int write,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,32)
+					 struct file *file,
+#endif
+					 void __user *buffer,
+					 size_t *length, loff_t *ppos)
+#endif
+{
+	struct cache_c *dmc = (struct cache_c *)table->extra1;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,32)
+	proc_dointvec(table, write, file, buffer, length, ppos);
+#else
+	proc_dointvec(table, write, buffer, length, ppos);
+#endif
+	if (write) {
+		if (dmc->sysctl_force_writeback_thresh_pct < force_writeback_thresh_min)
+			dmc->sysctl_force_writeback_thresh_pct = force_writeback_thresh_min;
+		if (dmc->sysctl_force_writeback_thresh_pct > force_writeback_thresh_max)
+			dmc->sysctl_force_writeback_thresh_pct = force_writeback_thresh_max;
+		dmc->force_writeback_thresh_set =
+			(dmc->assoc * dmc->sysctl_force_writeback_thresh_pct) / 100;
+	}
+	return 0;
+}
+
+static int
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,17,0)
+flashcache_writeback_update_seconds_sysctl(struct ctl_table *table, int write,
+					   void __user *buffer,
+					   size_t *length, loff_t *ppos)
+#else
+flashcache_writeback_update_seconds_sysctl(ctl_table *table, int write,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,32)
+					   struct file *file,
+#endif
+					   void __user *buffer,
+					   size_t *length, loff_t *ppos)
+#endif
+{
+	struct cache_c *dmc = (struct cache_c *)table->extra1;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,32)
+	proc_dointvec(table, write, file, buffer, length, ppos);
+#else
+	proc_dointvec(table, write, buffer, length, ppos);
+#endif
+	if (write) {
+		if (dmc->sysctl_writeback_update_seconds < writeback_update_seconds_min)
+			dmc->sysctl_writeback_update_seconds = writeback_update_seconds_min;
+		if (dmc->sysctl_writeback_update_seconds > writeback_update_seconds_max)
+			dmc->sysctl_writeback_update_seconds = writeback_update_seconds_max;
+		dmc->writeback_update_seconds = dmc->sysctl_writeback_update_seconds;
+	}
+	return 0;
+}
+
+static int
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,17,0)
 flashcache_dirty_thresh_sysctl(struct ctl_table *table, int write,
 			       void __user *buffer, 
 			       size_t *length, loff_t *ppos)
@@ -268,7 +368,7 @@ flashcache_lru_hot_pct_sysctl(ctl_table *table, int write,
  * entries - zero padded at the end ! Therefore the NUM_*_SYSCTLS
  * is 1 more than then number of sysctls.
  */
-#define FLASHCACHE_NUM_WRITEBACK_SYSCTLS	22
+#define FLASHCACHE_NUM_WRITEBACK_SYSCTLS	25
 
 static struct flashcache_writeback_sysctl_table {
 	struct ctl_table_header *sysctl_header;
@@ -317,6 +417,42 @@ static struct flashcache_writeback_sysctl_table {
 			.maxlen		= sizeof(int),
 			.mode		= 0644,
 			.proc_handler	= &proc_dointvec,
+		},
+                {
+ #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,33)
+                        .ctl_name       = CTL_UNNUMBERED,
+ #endif          
+                        .procname       = "writeback_throttle",
+                        .maxlen         = sizeof(int),
+                        .mode           = 0644,
+                        .proc_handler   = &flashcache_writeback_throttle_sysctl,
+ #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,33)
+                        .strategy       = &sysctl_intvec,
+ #endif          
+                },
+		{
+ #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,33)
+                        .ctl_name       = CTL_UNNUMBERED,
+ #endif          
+                        .procname       = "force_writeback_thresh_pct",
+                        .maxlen         = sizeof(int),
+                        .mode           = 0644,
+                        .proc_handler   = &flashcache_force_writeback_thresh_sysctl,
+ #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,33)
+                        .strategy       = &sysctl_intvec,
+ #endif          
+                },
+		{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,33)
+			.ctl_name       = CTL_UNNUMBERED,
+#endif
+			.procname       = "writeback_update_seconds",
+			.maxlen         = sizeof(int),
+			.mode           = 0644,
+			.proc_handler   = &flashcache_writeback_update_seconds_sysctl,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,33)
+			.strategy       = &sysctl_intvec,
+#endif
 		},
 		{
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,33)
@@ -754,6 +890,12 @@ flashcache_find_sysctl_data(struct cache_c *dmc, ctl_table *vars)
 		return &dmc->sysctl_cache_all;
 	else if (strcmp(vars->procname, "fallow_clean_speed") == 0) 
 		return &dmc->sysctl_fallow_clean_speed;
+	else if (strcmp(vars->procname, "writeback_throttle") == 0)
+		return &dmc->sysctl_writeback_throttle;
+	else if (strcmp(vars->procname, "force_writeback_thresh_pct") == 0)
+		return &dmc->sysctl_force_writeback_thresh_pct;
+	else if (strcmp(vars->procname, "writeback_update_seconds") == 0)
+		return &dmc->sysctl_writeback_update_seconds;
 	else if (strcmp(vars->procname, "fallow_delay") == 0) 
 		return &dmc->sysctl_fallow_delay;
 	else if (strcmp(vars->procname, "skip_seq_thresh_kb") == 0) 

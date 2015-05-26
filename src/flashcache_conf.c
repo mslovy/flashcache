@@ -1191,6 +1191,8 @@ init:
 	dmc->dirty_thresh_set = (dmc->assoc * dmc->sysctl_dirty_thresh) / 100;
 	dmc->max_clean_ios_total = MAX_CLEAN_IOS_TOTAL;
 	dmc->max_clean_ios_set = MAX_CLEAN_IOS_SET;
+	dmc->writeback_throttle = WRITEBACK_THROTTLE;
+	dmc->writeback_update_seconds = WRITEBACK_UPDATE_SECONDS;
 
 	/* Other sysctl defaults */
 	dmc->sysctl_io_latency_hist = 0;
@@ -1199,7 +1201,7 @@ init:
 	dmc->sysctl_pid_do_expiry = 0;
 	dmc->sysctl_max_pids = MAX_PIDS;
 	dmc->sysctl_pid_expiry_secs = PID_EXPIRY_SECS;
-	dmc->sysctl_reclaim_policy = FLASHCACHE_FIFO;
+	dmc->sysctl_reclaim_policy = FLASHCACHE_LRU;
 	dmc->sysctl_zerostats = 0;
 	dmc->sysctl_error_inject = 0;
 	dmc->sysctl_fast_remove = 0;
@@ -1213,7 +1215,12 @@ init:
 	dmc->sysctl_clean_on_write_miss = 0;
 	dmc->sysctl_lru_hot_pct = 75;
 	dmc->sysctl_lru_promote_thresh = 2;
-	dmc->sysctl_new_style_write_merge = 0;
+	dmc->sysctl_new_style_write_merge = 1;
+
+	dmc->sysctl_writeback_throttle = WRITEBACK_THROTTLE;
+	dmc->sysctl_force_writeback_thresh_pct = FORCE_WRITEBACK_THRESH;
+	dmc->force_writeback_thresh_set = (dmc->assoc * dmc->sysctl_force_writeback_thresh_pct) / 100;
+	dmc->sysctl_writeback_update_seconds = WRITEBACK_UPDATE_SECONDS;
 
 	/* Sequential i/o spotting */	
 	for (i = 0; i < SEQUENTIAL_TRACKER_QUEUE_DEPTH; i++) {

@@ -307,14 +307,19 @@ struct cache_c {
 	atomic_t remove_in_prog;
 
 	int	dirty_thresh_set;	/* Per set dirty threshold to start cleaning */
+	int     force_writeback_thresh_set; /* Per set dirty threshold to force writeback the data even if enable writeback_throttle */
+	int     writeback_throttle;	/* Limitation for Max Ops to flush dirty data in a certain period */
 	int	max_clean_ios_set;	/* Max cleaning IOs per set */
 	int	max_clean_ios_total;	/* Total max cleaning IOs */
 	atomic_t	clean_inprog;
 	atomic_t	sync_index;
 	atomic_t	nr_dirty;
+	atomic_t        nr_writeback;   /* Total writeback issued request in period */
 	atomic_t 	cached_blocks;	/* Number of cached blocks */
 	atomic_t 	pending_jobs_count;
 	int		num_block_hash_buckets;
+	unsigned long   writeback_tstamp; /* time stamp for cleaning nr_writeback */
+	unsigned long   writeback_update_seconds; /* period to update nr_writeback */
 
 	/* Stats */
 	struct flashcache_stats flashcache_stats;
@@ -389,6 +394,10 @@ struct cache_c {
 	int sysctl_cache_all;
 	int sysctl_fallow_clean_speed;
 	int sysctl_fallow_delay;
+	int sysctl_writeback_throttle;
+	int sysctl_force_writeback_thresh_pct;
+	int sysctl_writeback_update_seconds;	
+
 	int sysctl_skip_seq_thresh_kb;
 	int sysctl_clean_on_read_miss;
 	int sysctl_clean_on_write_miss;
@@ -614,16 +623,28 @@ struct cache_md_block_head {
 /* Default values for sysctls */
 #define DIRTY_THRESH_MIN	10
 #define DIRTY_THRESH_MAX	95
-#define DIRTY_THRESH_DEF	20
+#define DIRTY_THRESH_DEF	40
 
-#define MAX_CLEAN_IOS_SET	2
+#define MAX_CLEAN_IOS_SET	1
 #define MAX_CLEAN_IOS_TOTAL	4
 #define MAX_PIDS		100
 #define PID_EXPIRY_SECS		60
-#define FALLOW_DELAY		(60*15) /* 15 Mins default */
+#define FALLOW_DELAY		(60*30) /* 15 Mins default */
 #define FALLOW_SPEED_MIN	1
 #define FALLOW_SPEED_MAX	100
-#define FALLOW_CLEAN_SPEED	2
+#define FALLOW_CLEAN_SPEED	1
+
+#define WRITEBACK_THROTTLE      1
+#define WRITEBACK_THROTTLE_MIN  0
+#define WRITEBACK_THROTTLE_MAX  10000
+
+#define FORCE_WRITEBACK_THRESH     80
+#define FORCE_WRITEBACK_THRESH_MIN 10
+#define FORCE_WRITEBACK_THRESH_MAX 95
+
+#define WRITEBACK_UPDATE_SECONDS       5  /* 5 seconds default */
+#define WRITEBACK_UPDATE_SECONDS_MIN   1
+#define WRITEBACK_UPDATE_SECONDS_MAX   60
 
 #define FLASHCACHE_LRU_HOT_PCT_DEFAULT	50
 
