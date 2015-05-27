@@ -642,9 +642,9 @@ struct cache_md_block_head {
 #define FORCE_WRITEBACK_THRESH_MIN 10
 #define FORCE_WRITEBACK_THRESH_MAX 95
 
-#define WRITEBACK_UPDATE_SECONDS       5  /* 5 seconds default */
+#define WRITEBACK_UPDATE_SECONDS       10  /* 10 seconds default */
 #define WRITEBACK_UPDATE_SECONDS_MIN   1
-#define WRITEBACK_UPDATE_SECONDS_MAX   30
+#define WRITEBACK_UPDATE_SECONDS_MAX   60
 
 #define FLASHCACHE_LRU_HOT_PCT_DEFAULT	50
 
