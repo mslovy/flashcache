@@ -1168,6 +1168,7 @@ flashcache_clean_set(struct cache_c *dmc, int set, int force_clean_blocks)
 	int do_delayed_clean = 0;
 	int scanned = 0;
 	int current_nr_writeback = 0;
+	int dirty_factor;
 	unsigned long flags;
 
 	if (dmc->cache_mode != FLASHCACHE_WRITE_BACK)
@@ -1194,6 +1195,10 @@ flashcache_clean_set(struct cache_c *dmc, int set, int force_clean_blocks)
 	spin_lock_irqsave(&dmc->ioctl_lock, flags);
 	current_nr_writeback = atomic_read(&dmc->nr_writeback);
 	if  (dmc->writeback_throttle && time_after(jiffies, dmc->writeback_tstamp)) {
+		dirty_factor = ((atomic_read(&dmc->nr_dirty) * 100) / dmc->size) - dmc->sysctl_dirty_thresh;
+		dirty_factor = dirty_factor/10;
+		dirty_factor = dirty_factor > 0 ? (dirty_factor + 1) : 0; 
+		dmc->writeback_throttle = dmc->sysctl_writeback_throttle << dirty_factor;
 		current_nr_writeback = 0;
 		atomic_set(&dmc->nr_writeback, current_nr_writeback);
 		dmc->writeback_tstamp = jiffies + dmc->writeback_update_seconds * HZ;
