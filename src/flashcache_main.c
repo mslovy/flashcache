@@ -1201,7 +1201,7 @@ flashcache_clean_set(struct cache_c *dmc, int set, int force_clean_blocks)
 		dmc->writeback_throttle = dmc->sysctl_writeback_throttle << dirty_factor;
 		current_nr_writeback = 0;
 		atomic_set(&dmc->nr_writeback, current_nr_writeback);
-		dmc->writeback_tstamp = jiffies + dmc->writeback_update_seconds * HZ;
+		dmc->writeback_tstamp = jiffies + dmc->writeback_update_seconds * HZ + HZ * (get_random_int()%10)/10;
 	}
 	spin_unlock_irqrestore(&dmc->ioctl_lock, flags);
 
