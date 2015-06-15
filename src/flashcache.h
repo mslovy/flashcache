@@ -189,7 +189,10 @@ struct cache_set {
 	 */
 	u_int16_t               hotlist_lru_head, hotlist_lru_tail;
 	u_int16_t               warmlist_lru_head, warmlist_lru_tail;
+	u_int16_t               readlist_head, readlist_tail;
+	u_int16_t               writelist_head, writelist_tail;
 	u_int16_t               lru_hot_blocks, lru_warm_blocks;
+	u_int16_t               read_blocks, write_blocks;
 #define NUM_BLOCK_HASH_BUCKETS		512
 	u_int16_t		hash_buckets[NUM_BLOCK_HASH_BUCKETS];
 	u_int16_t		invalid_head;
@@ -243,6 +246,7 @@ struct flashcache_stats {
 	unsigned long force_clean_block;
 	unsigned long lru_promotions;
 	unsigned long lru_demotions;
+	unsigned long read_write_switch;
 };
 
 struct diskclean_buf_ {
@@ -349,8 +353,11 @@ struct cache_c {
 	unsigned long blacklist_expire_check, whitelist_expire_check;
 
 	atomic_t hot_list_pct;
+	atomic_t read_list_pct;
 	int lru_hot_blocks;
 	int lru_warm_blocks;
+	int lru_read_blocks;
+	int lru_write_blocks;
 
 	spinlock_t	cache_pending_q_spinlock;
 #define PENDING_JOB_HASH_SIZE		32
@@ -402,6 +409,7 @@ struct cache_c {
 	int sysctl_clean_on_read_miss;
 	int sysctl_clean_on_write_miss;
 	int sysctl_lru_hot_pct;
+	int sysctl_lru_read_pct;
 	int sysctl_lru_promote_thresh;
 	int sysctl_new_style_write_merge;
 
@@ -510,6 +518,8 @@ enum {
 /* lru_state in cache block */
 #define LRU_HOT			0x0001	/* On Hot LRU List */
 #define LRU_WARM		0x0002	/* On Warm LRU List */
+#define LRU_READ		0x0001  /* On READ LRU List */
+#define LRU_WRITE		0x0002  /* On WRITE LRU List */
 
 /* Cache metadata is read by Flashcache utilities */
 #ifndef __KERNEL__
@@ -527,8 +537,10 @@ struct cacheblock {
 	u_int16_t	cache_state;
 	int16_t 	nr_queued;	/* jobs in pending queue */
 	u_int16_t	lru_prev, lru_next;
+	u_int16_t	read_write_prev, read_write_next;
 	u_int8_t        use_cnt;
 	u_int8_t        lru_state;
+	u_int8_t        read_write_state;
 	sector_t 	dbn;	/* Sector number of the cached block */
 	u_int16_t	hash_prev, hash_next;
 #ifdef FLASHCACHE_DO_CHECKSUMS
@@ -647,6 +659,7 @@ struct cache_md_block_head {
 #define WRITEBACK_UPDATE_SECONDS_MAX   60
 
 #define FLASHCACHE_LRU_HOT_PCT_DEFAULT	50
+#define FLASHCACHE_LRU_READ_PCT_DEFAULT 50
 
 /* DM async IO mempool sizing */
 #define FLASHCACHE_ASYNC_SIZE 1024
@@ -742,6 +755,8 @@ void flashcache_reclaim_fifo_get_old_block(struct cache_c *dmc, int start_index,
 void flashcache_reclaim_lru_get_old_block(struct cache_c *dmc, int start_index, int *index);
 void flashcache_reclaim_init_lru_lists(struct cache_c *dmc);
 void flashcache_lru_accessed(struct cache_c *dmc, int index);
+void flashcache_read_write_accessed(struct cache_c *dmc, int index, bool read_op);
+void flashcache_reclaim_rebalance_readwrite_lru(struct cache_c *dmc, int new_lru_read_pct);
 void flashcache_reclaim_rebalance_lru(struct cache_c *dmc, int new_lru_hot_pct);
 void flashcache_merge_writes(struct cache_c *dmc, 
 			     struct dbn_index_pair *writes_list, 

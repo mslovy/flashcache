@@ -609,14 +609,16 @@ hash_block(struct cache_c *dmc, sector_t dbn)
 
 static void
 find_valid_dbn(struct cache_c *dmc, sector_t dbn, 
-	       int start_index, int *index)
+	       int start_index, int *index, bool read_op)
 {
 	*index = flashcache_hash_lookup(dmc, start_index / dmc->assoc, dbn);
 	if (*index == -1)
 		return;
 	if (dmc->sysctl_reclaim_policy == FLASHCACHE_LRU &&
-	    ((dmc->cache[*index].cache_state & BLOCK_IO_INPROG) == 0))
+	    ((dmc->cache[*index].cache_state & BLOCK_IO_INPROG) == 0)) {
 		flashcache_lru_accessed(dmc, *index);
+		flashcache_read_write_accessed(dmc, *index, read_op);
+	}
 	/* 
 	 * If the block was DIRTY and earmarked for cleaning because it was old, make 
 	 * the block young again.
@@ -625,13 +627,15 @@ find_valid_dbn(struct cache_c *dmc, sector_t dbn,
 }
 
 static int
-find_invalid_dbn(struct cache_c *dmc, int set)
+find_invalid_dbn(struct cache_c *dmc, int set, bool read_op)
 {
 	int index = flashcache_invalid_get(dmc, set);
 
 	if (index != -1) {
-		if (dmc->sysctl_reclaim_policy == FLASHCACHE_LRU)
+		if (dmc->sysctl_reclaim_policy == FLASHCACHE_LRU) {
 			flashcache_lru_accessed(dmc, index);
+			flashcache_read_write_accessed(dmc, index, read_op);
+		}
 		VERIFY((dmc->cache[index].cache_state & FALLOW_DOCLEAN) == 0);
 	}
 	return index;
@@ -639,12 +643,12 @@ find_invalid_dbn(struct cache_c *dmc, int set)
 
 /* Search for a slot that we can reclaim */
 static void
-find_reclaim_dbn(struct cache_c *dmc, int start_index, int *index)
+find_reclaim_dbn(struct cache_c *dmc, int start_index, int *index, bool read_op)
 {
 	if (dmc->sysctl_reclaim_policy == FLASHCACHE_FIFO)
 		flashcache_reclaim_fifo_get_old_block(dmc, start_index, index);
 	else /* flashcache_reclaim_policy == FLASHCACHE_LRU */
-		flashcache_reclaim_lru_get_old_block(dmc, start_index, index);
+		flashcache_reclaim_lru_get_old_block(dmc, start_index, index, read_op);
 }
 
 /* 
@@ -664,7 +668,7 @@ flashcache_lookup(struct cache_c *dmc, struct bio *bio, int *index)
 	start_index = dmc->assoc * set_number;
 	DPRINTK("Cache lookup : dbn %llu(%lu), set = %d",
 		dbn, io_size, set_number);
-	find_valid_dbn(dmc, dbn, start_index, index);
+	find_valid_dbn(dmc, dbn, start_index, index, bio_data_dir(bio) == READ);
 	if (*index >= 0) {
 		DPRINTK("Cache lookup HIT: Block %llu(%lu): VALID index %d",
 			     dbn, io_size, *index);
@@ -674,7 +678,7 @@ flashcache_lookup(struct cache_c *dmc, struct bio *bio, int *index)
 	invalid = find_invalid_dbn(dmc, set_number);
 	if (invalid == -1) {
 		/* We didn't find an invalid entry, search for oldest valid entry */
-		find_reclaim_dbn(dmc, start_index, &oldest_clean);
+		find_reclaim_dbn(dmc, start_index, &oldest_clean, bio_data_dir(bio) == READ);
 	}
 	/* 
 	 * Cache miss :

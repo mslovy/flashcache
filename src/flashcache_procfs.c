@@ -335,6 +335,32 @@ flashcache_dirty_thresh_sysctl(ctl_table *table, int write,
 
 static int
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,17,0)
+flashcache_lru_read_pct_sysctl(struct ctl_table *table, int write,
+			      void __user *buffer, 
+			      size_t *length, loff_t *ppos)
+#else
+flashcache_lru_read_pct_sysctl(ctl_table *table, int write,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,32)
+			       struct file *file, 
+#endif
+			       void __user *buffer, 
+			       size_t *length, loff_t *ppos)
+#endif
+{
+	struct cache_c *dmc = (struct cache_c *)table->extra1;
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,32)
+        proc_dointvec(table, write, file, buffer, length, ppos);
+#else
+        proc_dointvec(table, write, buffer, length, ppos);
+#endif
+	if (write)
+		flashcache_reclaim_rebalance_readwrite_lru(dmc, dmc->sysctl_lru_read_pct);
+	return 0;
+}
+
+static int
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,17,0)
 flashcache_lru_hot_pct_sysctl(struct ctl_table *table, int write,
 			      void __user *buffer, 
 			      size_t *length, loff_t *ppos)
@@ -368,7 +394,7 @@ flashcache_lru_hot_pct_sysctl(ctl_table *table, int write,
  * entries - zero padded at the end ! Therefore the NUM_*_SYSCTLS
  * is 1 more than then number of sysctls.
  */
-#define FLASHCACHE_NUM_WRITEBACK_SYSCTLS	25
+#define FLASHCACHE_NUM_WRITEBACK_SYSCTLS	26
 
 static struct flashcache_writeback_sysctl_table {
 	struct ctl_table_header *sysctl_header;
@@ -622,6 +648,18 @@ static struct flashcache_writeback_sysctl_table {
 			.maxlen		= sizeof(int),
 			.mode		= 0644,
 			.proc_handler	= &proc_dointvec,
+		},
+		{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,33)
+			.ctl_name	= CTL_UNNUMBERED,
+#endif
+			.procname	= "lru_read_pct",
+			.maxlen		= sizeof(int),
+			.mode		= 0644,
+			.proc_handler	= &flashcache_lru_read_pct_sysctl,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,33)
+			.strategy	= &sysctl_intvec,
+#endif
 		},
 		{
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,33)
@@ -906,6 +944,8 @@ flashcache_find_sysctl_data(struct cache_c *dmc, ctl_table *vars)
 		return &dmc->sysctl_clean_on_write_miss;
 	else if (strcmp(vars->procname, "lru_promote_thresh") == 0) 
 		return &dmc->sysctl_lru_promote_thresh;
+	else if (strcmp(vars->procname, "lru_read_pct") == 0)
+		return &dmc->sysctl_lru_read_pct;
 	else if (strcmp(vars->procname, "lru_hot_pct") == 0)
 		return &dmc->sysctl_lru_hot_pct;
 	else if (strcmp(vars->procname, "new_style_write_merge") == 0)

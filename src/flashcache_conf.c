@@ -1131,6 +1131,7 @@ init:
 	}
 	
 	atomic_set(&dmc->hot_list_pct, FLASHCACHE_LRU_HOT_PCT_DEFAULT);
+	atomic_set(&dmc->read_list_pct, FLASHCACHE_LRU_READ_PCT_DEFAULT);
 	flashcache_reclaim_init_lru_lists(dmc);
 	flashcache_hash_init(dmc);
 	if (flashcache_diskclean_init(dmc)) {
@@ -1213,7 +1214,8 @@ init:
 	dmc->sysctl_skip_seq_thresh_kb = SKIP_SEQUENTIAL_THRESHOLD;
 	dmc->sysctl_clean_on_read_miss = 0;
 	dmc->sysctl_clean_on_write_miss = 0;
-	dmc->sysctl_lru_hot_pct = 75;
+	dmc->sysctl_lru_hot_pct = FLASHCACHE_LRU_HOT_PCT_DEFAULT;
+	dmc->sysctl_lru_read_pct = FLASHCACHE_LRU_READ_PCT_DEFAULT;
 	dmc->sysctl_lru_promote_thresh = 2;
 	dmc->sysctl_new_style_write_merge = 1;
 
@@ -1573,14 +1575,15 @@ flashcache_status_info(struct cache_c *dmc, status_type_t type,
 	       "\tdisk read errors(%d), disk write errors(%d) ssd read errors(%d) ssd write errors(%d)\n" \
 	       "\tuncached sequential reads(%lu), uncached sequential writes(%lu)\n" \
 	       "\tpid_adds(%lu), pid_dels(%lu), pid_drops(%lu) pid_expiry(%lu)\n" \
-	       "\tlru hot blocks(%d), lru warm blocks(%d)\n" \
-	       "\tlru promotions(%lu), lru demotions(%lu)",
+	       "\tlru hot blocks(%d), lru warm blocks(%d), lru read blocks(%d), lru write blocks(%d)\n" \
+	       "\tlru promotions(%lu), lru demotions(%lu), lru_read_write switch(%lu)",
 	       stats->disk_reads, stats->disk_writes, stats->ssd_reads, stats->ssd_writes,
 	       stats->uncached_reads, stats->uncached_writes, stats->uncached_io_requeue,
                dmc->flashcache_errors.disk_read_errors, dmc->flashcache_errors.disk_write_errors, dmc->flashcache_errors.ssd_read_errors, dmc->flashcache_errors.ssd_write_errors,
 	       stats->uncached_sequential_reads, stats->uncached_sequential_writes,
 	       stats->pid_adds, stats->pid_dels, stats->pid_drops, stats->expiry,
-	       dmc->lru_hot_blocks, dmc->lru_warm_blocks, stats->lru_promotions, stats->lru_demotions);
+	       dmc->lru_hot_blocks, dmc->lru_warm_blocks, dmc->lru_read_blocks, dmc->lru_write_blocks,
+	       stats->lru_promotions, stats->lru_demotions, stats->read_write_switch);
 	if (dmc->sysctl_io_latency_hist) {
 		int i;
 		
