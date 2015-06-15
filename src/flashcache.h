@@ -243,6 +243,7 @@ struct flashcache_stats {
 	unsigned long force_clean_block;
 	unsigned long lru_promotions;
 	unsigned long lru_demotions;
+	unsigned long read_write_switch;
 };
 
 struct diskclean_buf_ {
@@ -349,8 +350,11 @@ struct cache_c {
 	unsigned long blacklist_expire_check, whitelist_expire_check;
 
 	atomic_t hot_list_pct;
+	atomic_t read_list_pct;
 	int lru_hot_blocks;
 	int lru_warm_blocks;
+	int lru_read_blocks;
+	int lru_write_blocks;
 
 	spinlock_t	cache_pending_q_spinlock;
 #define PENDING_JOB_HASH_SIZE		32
@@ -402,6 +406,7 @@ struct cache_c {
 	int sysctl_clean_on_read_miss;
 	int sysctl_clean_on_write_miss;
 	int sysctl_lru_hot_pct;
+	int sysctl_lru_read_pct;
 	int sysctl_lru_promote_thresh;
 	int sysctl_new_style_write_merge;
 
@@ -510,6 +515,8 @@ enum {
 /* lru_state in cache block */
 #define LRU_HOT			0x0001	/* On Hot LRU List */
 #define LRU_WARM		0x0002	/* On Warm LRU List */
+#define LRU_READ		0x0001  /* On READ LRU List */
+#define LRU_WRITE		0x0002  /* On WRITE LRU List */
 
 /* Cache metadata is read by Flashcache utilities */
 #ifndef __KERNEL__
@@ -527,8 +534,10 @@ struct cacheblock {
 	u_int16_t	cache_state;
 	int16_t 	nr_queued;	/* jobs in pending queue */
 	u_int16_t	lru_prev, lru_next;
+	u_int16_t	read_write_prev, read_write_next;
 	u_int8_t        use_cnt;
 	u_int8_t        lru_state;
+	u_int8_t        read_write_state;
 	sector_t 	dbn;	/* Sector number of the cached block */
 	u_int16_t	hash_prev, hash_next;
 #ifdef FLASHCACHE_DO_CHECKSUMS
@@ -623,7 +632,7 @@ struct cache_md_block_head {
 /* Default values for sysctls */
 #define DIRTY_THRESH_MIN	10
 #define DIRTY_THRESH_MAX	95
-#define DIRTY_THRESH_DEF	40
+#define DIRTY_THRESH_DEF	20
 
 #define MAX_CLEAN_IOS_SET	1
 #define MAX_CLEAN_IOS_TOTAL	4
@@ -638,7 +647,7 @@ struct cache_md_block_head {
 #define WRITEBACK_THROTTLE_MIN  0
 #define WRITEBACK_THROTTLE_MAX  10000
 
-#define FORCE_WRITEBACK_THRESH     80
+#define FORCE_WRITEBACK_THRESH     40
 #define FORCE_WRITEBACK_THRESH_MIN 10
 #define FORCE_WRITEBACK_THRESH_MAX 95
 
@@ -647,6 +656,7 @@ struct cache_md_block_head {
 #define WRITEBACK_UPDATE_SECONDS_MAX   60
 
 #define FLASHCACHE_LRU_HOT_PCT_DEFAULT	50
+#define FLASHCACHE_LRU_READ_PCT_DEFAULT 50
 
 /* DM async IO mempool sizing */
 #define FLASHCACHE_ASYNC_SIZE 1024
@@ -739,9 +749,11 @@ void flashcache_uncached_io_complete(struct kcached_job *job);
 void flashcache_clean_set(struct cache_c *dmc, int set, int force_clean_blocks);
 void flashcache_sync_all(struct cache_c *dmc);
 void flashcache_reclaim_fifo_get_old_block(struct cache_c *dmc, int start_index, int *index);
-void flashcache_reclaim_lru_get_old_block(struct cache_c *dmc, int start_index, int *index);
+void flashcache_reclaim_lru_get_old_block(struct cache_c *dmc, int start_index, int *index, bool read_op);
 void flashcache_reclaim_init_lru_lists(struct cache_c *dmc);
 void flashcache_lru_accessed(struct cache_c *dmc, int index);
+void flashcache_read_write_accessed(struct cache_c *dmc, int index, bool read_op);
+void flashcache_reclaim_rebalance_readwrite_lru(struct cache_c *dmc, int new_lru_read_pct);
 void flashcache_reclaim_rebalance_lru(struct cache_c *dmc, int new_lru_hot_pct);
 void flashcache_merge_writes(struct cache_c *dmc, 
 			     struct dbn_index_pair *writes_list, 
