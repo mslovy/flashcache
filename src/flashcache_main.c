@@ -675,7 +675,7 @@ flashcache_lookup(struct cache_c *dmc, struct bio *bio, int *index)
 		/* We found the exact range of blocks we are looking for */
 		return VALID;
 	}
-	invalid = find_invalid_dbn(dmc, set_number);
+	invalid = find_invalid_dbn(dmc, set_number, bio_data_dir(bio) == READ);
 	if (invalid == -1) {
 		/* We didn't find an invalid entry, search for oldest valid entry */
 		find_reclaim_dbn(dmc, start_index, &oldest_clean, bio_data_dir(bio) == READ);

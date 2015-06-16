@@ -635,7 +635,7 @@ struct cache_md_block_head {
 /* Default values for sysctls */
 #define DIRTY_THRESH_MIN	10
 #define DIRTY_THRESH_MAX	95
-#define DIRTY_THRESH_DEF	40
+#define DIRTY_THRESH_DEF	20
 
 #define MAX_CLEAN_IOS_SET	1
 #define MAX_CLEAN_IOS_TOTAL	4
@@ -650,7 +650,7 @@ struct cache_md_block_head {
 #define WRITEBACK_THROTTLE_MIN  0
 #define WRITEBACK_THROTTLE_MAX  10000
 
-#define FORCE_WRITEBACK_THRESH     80
+#define FORCE_WRITEBACK_THRESH     40
 #define FORCE_WRITEBACK_THRESH_MIN 10
 #define FORCE_WRITEBACK_THRESH_MAX 95
 
@@ -752,7 +752,7 @@ void flashcache_uncached_io_complete(struct kcached_job *job);
 void flashcache_clean_set(struct cache_c *dmc, int set, int force_clean_blocks);
 void flashcache_sync_all(struct cache_c *dmc);
 void flashcache_reclaim_fifo_get_old_block(struct cache_c *dmc, int start_index, int *index);
-void flashcache_reclaim_lru_get_old_block(struct cache_c *dmc, int start_index, int *index);
+void flashcache_reclaim_lru_get_old_block(struct cache_c *dmc, int start_index, int *index, bool read_op);
 void flashcache_reclaim_init_lru_lists(struct cache_c *dmc);
 void flashcache_lru_accessed(struct cache_c *dmc, int index);
 void flashcache_read_write_accessed(struct cache_c *dmc, int index, bool read_op);
