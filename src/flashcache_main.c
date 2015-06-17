@@ -616,8 +616,8 @@ find_valid_dbn(struct cache_c *dmc, sector_t dbn,
 		return;
 	if (dmc->sysctl_reclaim_policy == FLASHCACHE_LRU &&
 	    ((dmc->cache[*index].cache_state & BLOCK_IO_INPROG) == 0)) {
-		flashcache_lru_accessed(dmc, *index);
-		//flashcache_read_write_accessed(dmc, *index, read_op);
+		//flashcache_lru_accessed(dmc, *index);
+		flashcache_read_write_accessed(dmc, *index, read_op);
 	}
 	/* 
 	 * If the block was DIRTY and earmarked for cleaning because it was old, make 
@@ -633,8 +633,8 @@ find_invalid_dbn(struct cache_c *dmc, int set, bool read_op)
 
 	if (index != -1) {
 		if (dmc->sysctl_reclaim_policy == FLASHCACHE_LRU) {
-			flashcache_lru_accessed(dmc, index);
-			//flashcache_read_write_accessed(dmc, index, read_op);
+			//flashcache_lru_accessed(dmc, index);
+			flashcache_read_write_accessed(dmc, index, read_op);
 		}
 		VERIFY((dmc->cache[index].cache_state & FALLOW_DOCLEAN) == 0);
 	}
@@ -1304,9 +1304,9 @@ flashcache_clean_set(struct cache_c *dmc, int set, int force_clean_blocks)
 
 		for (iter = 0 ; iter < 2 ; iter++) {
 			if (iter == 0)
-				lru_rel_index = cache_set->warmlist_lru_head;
+				lru_rel_index = cache_set->readlist_head;
 			else
-				lru_rel_index = cache_set->hotlist_lru_head;
+				lru_rel_index = cache_set->writelist_head;
 			while (lru_rel_index != FLASHCACHE_NULL &&
 			       flashcache_can_clean(dmc, cache_set, nr_writes) &&
 			       nr_writes < threshold_clean) {
@@ -1325,7 +1325,7 @@ flashcache_clean_set(struct cache_c *dmc, int set, int force_clean_blocks)
 				 */
 				if (force_clean_blocks > 0 && scanned == force_clean_blocks)
 					goto out;
-				lru_rel_index = cacheblk->lru_next;
+				lru_rel_index = cacheblk->read_write_next;
 			}
 		}
 	}

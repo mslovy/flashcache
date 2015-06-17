@@ -336,7 +336,6 @@ flashcache_reclaim_remove_block_from_readwrite_list(struct cache_c *dmc, int ind
 		if (cache_set->writelist_tail != FLASHCACHE_NULL)
 			VERIFY(cache_set->write_blocks > 0);
 	}
-
 }
 
 /* Removes a block from its list */
@@ -422,7 +421,7 @@ flashcache_reclaim_add_block_to_readwrite_mru(struct cache_c *dmc, int index)
 	struct cache_set *cache_set = &dmc->cache_sets[set];
 
 	/* At least one should be set */
-	VERIFY((cacheblk->read_write_state& (LRU_READ | LRU_WRITE)) != 0);
+	VERIFY((cacheblk->read_write_state & (LRU_READ | LRU_WRITE)) != 0);
 	/* Both should not be set */
 	VERIFY((cacheblk->read_write_state & (LRU_READ | LRU_WRITE)) != (LRU_READ | LRU_WRITE));
 	cacheblk->read_write_next = FLASHCACHE_NULL;
@@ -582,7 +581,7 @@ flashcache_reclaim_add_block_to_list_lru(struct cache_c *dmc, int index)
 }
 
 void
-flashcache_reclaim_move_to_readwrite(struct cache_c *dmc, int index)
+flashcache_reclaim_move_to_readwrite_mru(struct cache_c *dmc, int index)
 {
 	struct cacheblock *cacheblk = &dmc->cache[index];
 
@@ -764,19 +763,18 @@ flashcache_reclaim_demote_block(struct cache_c *dmc, int index)
 void
 flashcache_reclaim_lru_get_old_block(struct cache_c *dmc, int start_index, int *index, bool read_op)
 {
-	int lru_rel_index;
+	int readwrite_rel_index;
 	struct cacheblock *cacheblk;
 	int set = start_index / dmc->assoc;
 	struct cache_set *cache_set = &dmc->cache_sets[set];
 
 	*index = -1;
-	//lru_rel_index = cache_set->warmlist_lru_head;
 	if (read_op)
-		lru_rel_index = cache_set->readlist_head;
+		readwrite_rel_index = cache_set->readlist_head;
 	else
-		lru_rel_index = cache_set->writelist_head;
-	while (lru_rel_index != FLASHCACHE_NULL) {
-		cacheblk = &dmc->cache[lru_rel_index + start_index];
+		readwrite_rel_index = cache_set->writelist_head;
+	while (readwrite_rel_index != FLASHCACHE_NULL) {
+		cacheblk = &dmc->cache[readwrite_rel_index + start_index];
 		if (cacheblk->cache_state == VALID) {
 			*index = cacheblk - &dmc->cache[0];
 			VERIFY((cacheblk->cache_state & FALLOW_DOCLEAN) == 0);
@@ -788,54 +786,71 @@ flashcache_reclaim_lru_get_old_block(struct cache_c *dmc, int start_index, int *
 				VERIFY(cacheblk->read_write_state & LRU_WRITE);
 				VERIFY((cacheblk->read_write_state & LRU_READ)==0);
 			}
-			if (cacheblk->lru_state & LRU_HOT) {
-				if (!flashcache_reclaim_demote_block(dmc, *index)) {
-					flashcache_reclaim_move_to_mru(dmc, *index);
-				}
-			} else {
-				cacheblk->use_cnt = 0;
-				flashcache_reclaim_move_to_mru(dmc, *index);
-			}
-			flashcache_reclaim_move_to_readwrite(dmc, *index);
+			flashcache_reclaim_move_to_readwrite_mru(dmc, *index);
 			break;
 		}
-		lru_rel_index = cacheblk->read_write_next;
+		readwrite_rel_index = cacheblk->read_write_next;
 	}
-	//if (likely(*index != -1))
-	//	return;
-	/* 
-	 * We did not find a block on the "warm" LRU list that we could take, pick 
-	 * a block from the "hot" LRU list.
-	 */
-	/*
-	lru_rel_index = cache_set->hotlist_lru_head;
-	while (lru_rel_index != FLASHCACHE_NULL) {
-		cacheblk = &dmc->cache[lru_rel_index + start_index];
-		if (cacheblk->cache_state == VALID) {
-			*index = cacheblk - &dmc->cache[0];
-			VERIFY((cacheblk->cache_state & FALLOW_DOCLEAN) == 0);
-			VERIFY(cacheblk->lru_state & LRU_HOT);
-			VERIFY((cacheblk->lru_state & LRU_WARM) == 0);
-			VERIFY(cacheblk->use_cnt == 0);
-			 * 
-			 * Swap this block with the MRU block in the warm list.
-			 * To maintain equilibrium between the lists
-			 * 1) We put this block in the MRU position on the warm list
-			 * 2) Remove the block in the LRU position on the warm list and
-			 * 3) Move that block to the LRU position on the hot list.
-			 /
-			if (!flashcache_reclaim_demote_block(dmc, *index))
-				* 
-				 * We cannot demote this block to the warm list
-				 * just move it to the MRU position.
-				 /
-				flashcache_reclaim_move_to_mru(dmc, *index);
-			break;
-		}
-		lru_rel_index = cacheblk->lru_next;
-	}
-	*/
 }
+
+/*
+void
+flashcache_reclaim_lru_get_old_block(struct cache_c *dmc, int start_index, int *index)
+{
+        int lru_rel_index;
+        struct cacheblock *cacheblk;
+        int set = start_index / dmc->assoc;
+        struct cache_set *cache_set = &dmc->cache_sets[set];
+
+        *index = -1;
+        lru_rel_index = cache_set->warmlist_lru_head;
+        while (lru_rel_index != FLASHCACHE_NULL) {
+                cacheblk = &dmc->cache[lru_rel_index + start_index];
+                if (cacheblk->cache_state == VALID) {
+                        *index = cacheblk - &dmc->cache[0];
+                        VERIFY((cacheblk->cache_state & FALLOW_DOCLEAN) == 0);
+                        VERIFY(cacheblk->lru_state & LRU_WARM);
+                        VERIFY((cacheblk->lru_state & LRU_HOT) == 0);
+                        cacheblk->use_cnt = 0;
+                        flashcache_reclaim_move_to_mru(dmc, *index);
+                        break;
+                }
+                lru_rel_index = cacheblk->lru_next;
+        }
+        if (likely(*index != -1))
+                return;
+        * 
+         * We did not find a block on the "warm" LRU list that we could take, pick 
+         * a block from the "hot" LRU list.
+         *
+        lru_rel_index = cache_set->hotlist_lru_head;
+        while (lru_rel_index != FLASHCACHE_NULL) {
+                cacheblk = &dmc->cache[lru_rel_index + start_index];
+                if (cacheblk->cache_state == VALID) {
+                        *index = cacheblk - &dmc->cache[0];
+                        VERIFY((cacheblk->cache_state & FALLOW_DOCLEAN) == 0);
+                        VERIFY(cacheblk->lru_state & LRU_HOT);
+                        VERIFY((cacheblk->lru_state & LRU_WARM) == 0);
+                        VERIFY(cacheblk->use_cnt == 0);
+                        * 
+                         * Swap this block with the MRU block in the warm list.
+                         * To maintain equilibrium between the lists
+                         * 1) We put this block in the MRU position on the warm list
+                         * 2) Remove the block in the LRU position on the warm list and
+                         * 3) Move that block to the LRU position on the hot list.
+                         *
+                        if (!flashcache_reclaim_demote_block(dmc, *index))
+                                * 
+                                 * We cannot demote this block to the warm list
+                                 * just move it to the MRU position.
+                                 *
+                                flashcache_reclaim_move_to_mru(dmc, *index);
+                        break;
+                }
+                lru_rel_index = cacheblk->lru_next;
+        }
+}
+*/
 
 /* Block moved from warm to hot list on second access */
 
@@ -862,21 +877,21 @@ flashcache_read_write_accessed(struct cache_c *dmc, int index, bool read_op)
 	if (cacheblk->read_write_state & LRU_READ) {
 		VERIFY((cacheblk->read_write_state & LRU_WRITE) == 0);
 		if (read_op) {
-			flashcache_reclaim_move_to_readwrite(dmc, index);
+			flashcache_reclaim_move_to_readwrite_mru(dmc, index);
 		}
 		else {
 			if(!flashcache_reclaim_switch_read_to_write(dmc, index))
-				flashcache_reclaim_move_to_readwrite(dmc, index);
+				flashcache_reclaim_move_to_readwrite_mru(dmc, index);
 		}
 	}
 	else {
 		VERIFY((cacheblk->read_write_state & LRU_READ) == 0);
 		if (read_op) {
 			if(!flashcache_reclaim_switch_write_to_read(dmc, index))
-				flashcache_reclaim_move_to_readwrite(dmc, index);
+				flashcache_reclaim_move_to_readwrite_mru(dmc, index);
 		}
 		else {
-			flashcache_reclaim_move_to_readwrite(dmc, index);
+			flashcache_reclaim_move_to_readwrite_mru(dmc, index);
 		}
 	}
 }
