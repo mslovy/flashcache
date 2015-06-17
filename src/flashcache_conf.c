@@ -306,7 +306,7 @@ flashcache_writeback_md_store(struct cache_c *dmc)
 	header->cache_version = dmc->on_ssd_version;
 	header->write_only_cache = dmc->write_only_cache;
 	
-	DPRINTK("Store metadata to disk: block size(%u), md block size(%u), cache size(%llu)" \
+	DPRINTK("Store metadata to disk: block size(%u), md block size(%u), cache size(%lu)" \
 	        "associativity(%u)",
 	        header->block_size, header->md_block_size, header->size,
 	        header->assoc);
@@ -638,7 +638,7 @@ flashcache_writeback_load(struct cache_c *dmc)
 
 	dmc->on_ssd_version = header->cache_version;
 		
-	DPRINTK("Loaded cache conf: version(%d), block size(%u), md block size(%u), cache size(%llu), " \
+	DPRINTK("Loaded cache conf: version(%d), block size(%u), md block size(%u), cache size(%lu), " \
 	        "associativity(%u)",
 	        header->cache_version, header->block_size, header->md_block_size, header->size,
 	        header->assoc);
