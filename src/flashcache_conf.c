@@ -1127,6 +1127,10 @@ init:
 		dmc->cache_sets[i].hotlist_lru_head = FLASHCACHE_NULL;
 		dmc->cache_sets[i].warmlist_lru_tail = FLASHCACHE_NULL;
 		dmc->cache_sets[i].warmlist_lru_head = FLASHCACHE_NULL;
+        dmc->cache_sets[i].readlist_tail = FLASHCACHE_NULL;
+        dmc->cache_sets[i].readlist_head = FLASHCACHE_NULL;
+        dmc->cache_sets[i].writelist_tail = FLASHCACHE_NULL;
+        dmc->cache_sets[i].writelist_head = FLASHCACHE_NULL;		
 		spin_lock_init(&dmc->cache_sets[i].set_spin_lock);
 	}
 	
