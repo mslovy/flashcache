@@ -263,7 +263,7 @@ struct sequential_io {
 	/* We use LRU replacement when we need to record a new i/o 'flow' */
 	struct sequential_io 	*prev, *next;
 };
-#define SKIP_SEQUENTIAL_THRESHOLD 0			/* 0 = cache all, >0 = dont cache sequential i/o more than this (kb) */
+#define SKIP_SEQUENTIAL_THRESHOLD 4096			/* 0 = cache all, >0 = dont cache sequential i/o more than this (kb) */
 #define SEQUENTIAL_TRACKER_QUEUE_DEPTH	32		/* How many io 'flows' to track (random i/o will hog many).
 							 * This should be large enough so that we don't quickly 
 							 * evict sequential i/o when we see some random,

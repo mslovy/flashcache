@@ -1263,7 +1263,7 @@ flashcache_clean_set(struct cache_c *dmc, int set, int force_clean_blocks)
 		 * remain under the dirty threshold. Clean some more blocks.
 		 */
 		if (cache_set->nr_dirty > dmc->force_writeback_thresh_set)
-			threshold_clean = cache_set->nr_dirty - dmc->force_writeback_thresh_set + dmc->assoc/10;
+			threshold_clean = cache_set->nr_dirty - dmc->force_writeback_thresh_set + dmc->assoc/20;
 		else
 			threshold_clean = dmc->writeback_throttle - current_nr_writeback;
 	} else if (cache_set->nr_dirty > 0) {
