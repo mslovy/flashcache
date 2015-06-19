@@ -189,10 +189,7 @@ struct cache_set {
 	 */
 	u_int16_t               hotlist_lru_head, hotlist_lru_tail;
 	u_int16_t               warmlist_lru_head, warmlist_lru_tail;
-	u_int16_t               readlist_head, readlist_tail;
-	u_int16_t               writelist_head, writelist_tail;
 	u_int16_t               lru_hot_blocks, lru_warm_blocks;
-	u_int16_t               read_blocks, write_blocks;
 #define NUM_BLOCK_HASH_BUCKETS		512
 	u_int16_t		hash_buckets[NUM_BLOCK_HASH_BUCKETS];
 	u_int16_t		invalid_head;
