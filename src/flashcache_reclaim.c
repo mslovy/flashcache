@@ -97,7 +97,7 @@ void
 flashcache_reclaim_rebalance_readwrite_lru(struct cache_c *dmc, int new_lru_read_pct)
 {
 	int new_read_blocks, old_read_blocks;
-	int set, index, current;
+	int set, index, cindex;
 	struct cache_set *cache_set;
 	struct cacheblock *cacheblk;
 	int blocks_to_move, moved;
@@ -115,10 +115,10 @@ flashcache_reclaim_rebalance_readwrite_lru(struct cache_c *dmc, int new_lru_read
 			cache_set = &dmc->cache_sets[set];
 			spin_lock_irq(&cache_set->set_spin_lock);
 			moved = 0;
-			current  = cache_set->warmlist_lru_head;
-			while ((current != FLASHCACHE_NULL) &&
+			cindex  = cache_set->warmlist_lru_head;
+			while ((cindex != FLASHCACHE_NULL) &&
 			       (moved < blocks_to_move)) {
-				index = current + start_index;
+				index = cindex + start_index;
 				cacheblk = &dmc->cache[index];
 				if (cacheblk->read_write_state == LRU_WRITE) {
 					flashcache_reclaim_remove_block_from_list(dmc, index);
@@ -129,12 +129,12 @@ flashcache_reclaim_rebalance_readwrite_lru(struct cache_c *dmc, int new_lru_read
 					dmc->lru_read_blocks++;
 					dmc->lru_write_blocks--;
 				}
-				current = cacheblk->lru_next;
+				cindex = cacheblk->lru_next;
 			}
-			current  = cache_set->hotlist_lru_head;
-			while ((current != FLASHCACHE_NULL) &&
+			cindex = cache_set->hotlist_lru_head;
+			while ((cindex != FLASHCACHE_NULL) &&
 			       (moved < blocks_to_move)) {
-				index = current + start_index;
+				index = cindex + start_index;
 				cacheblk = &dmc->cache[index];
 				if (cacheblk->read_write_state == LRU_WRITE) {
 					flashcache_reclaim_remove_block_from_list(dmc, index);
@@ -145,7 +145,7 @@ flashcache_reclaim_rebalance_readwrite_lru(struct cache_c *dmc, int new_lru_read
 					dmc->lru_read_blocks++;
 					dmc->lru_write_blocks--;
 				}
-				current = cacheblk->lru_next;
+				cindex = cacheblk->lru_next;
 			}
 			spin_unlock_irq(&cache_set->set_spin_lock);
 		}
@@ -157,10 +157,10 @@ flashcache_reclaim_rebalance_readwrite_lru(struct cache_c *dmc, int new_lru_read
 			cache_set = &dmc->cache_sets[set];
 			spin_lock_irq(&cache_set->set_spin_lock);
 			moved = 0;
-			current  = cache_set->warmlist_lru_head;
-			while ((current != FLASHCACHE_NULL) &&
+			cindex  = cache_set->warmlist_lru_head;
+			while ((cindex != FLASHCACHE_NULL) &&
 			       (moved < blocks_to_move)) {
-				index = current + start_index;
+				index = cindex + start_index;
 				cacheblk = &dmc->cache[index];
 				if (cacheblk->read_write_state == LRU_READ) {
 					flashcache_reclaim_remove_block_from_list(dmc, index);
@@ -171,12 +171,12 @@ flashcache_reclaim_rebalance_readwrite_lru(struct cache_c *dmc, int new_lru_read
 					dmc->lru_read_blocks--;
 					dmc->lru_write_blocks++;
 				}
-				current = cacheblk->lru_next;
+				cindex = cacheblk->lru_next;
 			}
-			current  = cache_set->hotlist_lru_head;
-			while ((current != FLASHCACHE_NULL) &&
+			cindex  = cache_set->hotlist_lru_head;
+			while ((cindex != FLASHCACHE_NULL) &&
 			       (moved < blocks_to_move)) {
-				index = current + start_index;
+				index = cindex + start_index;
 				cacheblk = &dmc->cache[index];
 				if (cacheblk->read_write_state == LRU_READ) {
 					flashcache_reclaim_remove_block_from_list(dmc, index);
@@ -187,7 +187,7 @@ flashcache_reclaim_rebalance_readwrite_lru(struct cache_c *dmc, int new_lru_read
 					dmc->lru_read_blocks--;
 					dmc->lru_write_blocks++;
 				}
-				current = cacheblk->lru_next;
+				cindex = cacheblk->lru_next;
 			}
 			spin_unlock_irq(&cache_set->set_spin_lock);
 		}
@@ -483,8 +483,9 @@ flashcache_reclaim_move_to_mru(struct cache_c *dmc, int index)
 static int 
 flashcache_reclaim_switch_write_to_read(struct cache_c *dmc, int index)
 {
-	struct cacheblock *cacheblk;
+	struct cacheblock *cacheblk = NULL;
 	int lru_rel_index, iter;
+	int cindex = FLASHCACHE_NULL;
 	int set = index / dmc->assoc;
 	int start_index = set * dmc->assoc;
 	struct cache_set *cache_set = &dmc->cache_sets[set];
@@ -494,10 +495,12 @@ flashcache_reclaim_switch_write_to_read(struct cache_c *dmc, int index)
 			lru_rel_index = cache_set->warmlist_lru_head;
 		else
 			lru_rel_index = cache_set->hotlist_lru_head;
-		while (lru_rel_index != FLASHCACHE_NULL) {
+		while (cindex == FLASHCACHE_NULL && lru_rel_index != FLASHCACHE_NULL) {
 			cacheblk  = &dmc->cache[lru_rel_index + start_index];
-			if (cacheblk->read_write_state == LRU_READ)
+			if (cacheblk->read_write_state == LRU_READ) {
+				cindex = lru_rel_index;
 				break;
+			}
 			lru_rel_index = cacheblk->lru_next;
 		}
 	}
@@ -515,14 +518,14 @@ flashcache_reclaim_switch_write_to_read(struct cache_c *dmc, int index)
 	cacheblk->read_write_state |= LRU_READ;
 	dmc->flashcache_stats.read_write_switch++;
 	return 1;
-
 }
 
 static int
 flashcache_reclaim_switch_read_to_write(struct cache_c *dmc, int index)
 {
-	struct cacheblock *cacheblk;
+	struct cacheblock *cacheblk = NULL;
 	int lru_rel_index, iter;
+	int cindex = FLASHCACHE_NULL;
 	int set = index / dmc->assoc;
 	int start_index = set * dmc->assoc;
 	struct cache_set *cache_set = &dmc->cache_sets[set];
@@ -532,10 +535,12 @@ flashcache_reclaim_switch_read_to_write(struct cache_c *dmc, int index)
 			lru_rel_index = cache_set->warmlist_lru_head;
 		else
 			lru_rel_index = cache_set->hotlist_lru_head;
-		while (lru_rel_index != FLASHCACHE_NULL) {
+		while (cindex == FLASHCACHE_NULL  && lru_rel_index != FLASHCACHE_NULL) {
 			cacheblk  = &dmc->cache[lru_rel_index + start_index];
-			if (cacheblk->read_write_state == LRU_WRITE)
+			if (cacheblk->read_write_state == LRU_WRITE) {
+				cindex = lru_rel_index;
 				break;
+			}
 			lru_rel_index = cacheblk->lru_next;
 		}
 	}
@@ -757,22 +762,14 @@ flashcache_read_write_accessed(struct cache_c *dmc, int index, bool read_op)
 
 	if (cacheblk->read_write_state & LRU_READ) {
 		VERIFY((cacheblk->read_write_state & LRU_WRITE) == 0);
-		if (read_op) {
-			flashcache_reclaim_move_to_readwrite_mru(dmc, index);
-		}
-		else {
-			if(!flashcache_reclaim_switch_read_to_write(dmc, index))
-				flashcache_reclaim_move_to_readwrite_mru(dmc, index);
+		if (!read_op) {
+			flashcache_reclaim_switch_read_to_write(dmc, index);
 		}
 	}
 	else {
 		VERIFY((cacheblk->read_write_state & LRU_READ) == 0);
 		if (read_op) {
-			if(!flashcache_reclaim_switch_write_to_read(dmc, index))
-				flashcache_reclaim_move_to_readwrite_mru(dmc, index);
-		}
-		else {
-			flashcache_reclaim_move_to_readwrite_mru(dmc, index);
+			flashcache_reclaim_switch_write_to_read(dmc, index);
 		}
 	}
 }
